@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUser, unauthorized } from '@/lib/supabase-server';
 
 export async function POST(request: NextRequest) {
-  // Check authentication
-  const user = await getUser();
-  if (!user) {
-    return unauthorized();
-  }
   try {
     const { documentUrl } = await request.json();
     

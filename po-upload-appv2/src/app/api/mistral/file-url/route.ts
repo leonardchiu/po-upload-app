@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUser, unauthorized } from '@/lib/supabase-server';
 
 export async function GET(request: NextRequest) {
-  // Check authentication
-  const user = await getUser();
-  if (!user) {
-    return unauthorized();
-  }
   try {
     const searchParams = request.nextUrl.searchParams;
     const fileId = searchParams.get('id');

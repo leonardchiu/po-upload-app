@@ -7,10 +7,8 @@ import { Card } from "@/components/ui/card";
 import { createClient } from '@/lib/supabase'
 import { useState, useRef } from 'react'
 import POForm from '@/components/po-form'
-import { useAuth } from "@/components/auth-provider"
 
 export default function UploadPage() {
-  const { user, signOut } = useAuth()
   const [uploading, setUploading] = useState(false)
   const [file, setFile] = useState<File | null>(null)
   const [uploadedFileUrl, setUploadedFileUrl] = useState<string | null>(null)
@@ -21,7 +19,6 @@ export default function UploadPage() {
   const [processingAI, setProcessingAI] = useState(false)
   const [poData, setPoData] = useState<any>(null)
   const [showForm, setShowForm] = useState(false)
-  const [viewMode, setViewMode] = useState<'ocr' | 'form'>('ocr')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
 
@@ -35,9 +32,6 @@ export default function UploadPage() {
       setOcrMarkdown('')
       setPoData(null)
       setShowForm(false)
-      
-      // Update success message with new file name
-      setDocumentContent(`File selected: ${selectedFile.name}`)
       
       // Preview PDF locally
       const fileUrl = URL.createObjectURL(selectedFile)
@@ -133,7 +127,6 @@ export default function UploadPage() {
       const data = await response.json()
       setPoData(data)
       setShowForm(true)
-      setViewMode('form')
     } catch (error: any) {
       console.error('AI Processing Error:', error)
       setError(`AI Processing Error: ${error.message}`)
@@ -151,7 +144,8 @@ export default function UploadPage() {
   }
 
   const handlePOFormCancel = () => {
-    setViewMode('ocr')
+    setShowForm(false)
+    setPoData(null)
   }
 
   const handleUpload = async (e: React.FormEvent) => {
@@ -164,7 +158,6 @@ export default function UploadPage() {
 
     setUploading(true)
     setError(null)
-    setDocumentContent('') // Clear previous success message
 
     try {
       // First, perform OCR on the file
@@ -181,7 +174,7 @@ export default function UploadPage() {
         if (listError.message.includes('not found')) {
           throw new Error('Storage bucket "purchase-orders" not found. Please create it in your Supabase dashboard under Storage.')
         } else if (listError.message.includes('row-level security')) {
-          throw new Error('Storage bucket has RLS enabled. Please ensure you have policies that allow authenticated users to SELECT and INSERT files.')
+          throw new Error('Storage bucket has RLS enabled but no policies. Please either: 1) Disable RLS on the "purchase-orders" bucket in Supabase Storage settings, or 2) Add a policy allowing INSERT for anonymous users.')
         }
       }
 
@@ -197,9 +190,17 @@ export default function UploadPage() {
       if (error) {
         // Check for RLS policy error
         if (error.message && error.message.includes('row-level security')) {
-          throw new Error(`Storage RLS Policy Error: ${error.message}
+          throw new Error(`Storage RLS Policy Error: The bucket has Row Level Security enabled but no policies allow uploads. 
           
-Please ensure you have the correct RLS policies set up for authenticated users in your Supabase dashboard.`)
+To fix this, go to your Supabase dashboard:
+1. Navigate to Storage > Policies
+2. Find the "purchase-orders" bucket
+3. Either:
+   - Disable RLS for this bucket (easier for testing), OR
+   - Add a new policy with:
+     • Operation: INSERT
+     • Target roles: anon (for anonymous users)
+     • Policy: true (to allow all uploads)`)
         }
         throw error
       }
@@ -228,16 +229,6 @@ Please ensure you have the correct RLS policies set up for authenticated users i
 
   return (
     <Layout>
-      {/* User info and logout button */}
-      <div className="flex justify-between items-center mb-6">
-        <div className="text-sm text-gray-600">
-          Logged in as: <span className="font-medium">{user?.email}</span>
-        </div>
-        <Button onClick={signOut} variant="outline" size="sm">
-          Sign Out
-        </Button>
-      </div>
-      
       <div className="space-y-6">
         <div>
           <h2 className="text-xl font-semibold mb-4">Upload Purchase Order</h2>
@@ -263,15 +254,13 @@ Please ensure you have the correct RLS policies set up for authenticated users i
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Document Preview */}
             <Card className="p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold">Document Preview</h3>
-                {documentContent && (
-                  <span className="text-sm text-green-600 font-medium">
-                    {documentContent}
-                  </span>
-                )}
-              </div>
-              <div className="border rounded-lg overflow-hidden" style={{ height: 'calc(100vh - 360px)', maxHeight: '800px' }}>
+              <h3 className="text-lg font-semibold mb-4">Document Preview</h3>
+              {documentContent && (
+                <div className="mb-4 p-4 bg-green-50 text-green-700 rounded">
+                  {documentContent}
+                </div>
+              )}
+              <div className="border rounded-lg overflow-hidden" style={{ height: '600px' }}>
                 <iframe
                   src={uploadedFileUrl}
                   className="w-full h-full"
@@ -280,71 +269,46 @@ Please ensure you have the correct RLS policies set up for authenticated users i
               </div>
             </Card>
             
-            {/* OCR Results / PO Form */}
+            {/* OCR Results */}
             <Card className="p-6">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold">
-                  {viewMode === 'ocr' ? 'OCR Extracted Text' : 'Purchase Order Form'}
-                </h3>
-                <div className="flex gap-2">
-                  {/* Toggle buttons */}
-                  {showForm && (
-                    <div className="flex rounded-lg border">
-                      <Button
-                        variant={viewMode === 'ocr' ? 'default' : 'ghost'}
-                        size="sm"
-                        onClick={() => setViewMode('ocr')}
-                        className="rounded-r-none"
-                      >
-                        OCR Text
-                      </Button>
-                      <Button
-                        variant={viewMode === 'form' ? 'default' : 'ghost'}
-                        size="sm"
-                        onClick={() => setViewMode('form')}
-                        className="rounded-l-none"
-                      >
-                        PO Form
-                      </Button>
-                    </div>
-                  )}
-                  {/* Process with AI button */}
-                  {ocrMarkdown && !showForm && (
-                    <Button 
-                      onClick={processWithAI} 
-                      disabled={processingAI}
-                      size="sm"
-                    >
-                      {processingAI ? 'Processing...' : 'Process with AI'}
-                    </Button>
-                  )}
-                </div>
+                <h3 className="text-lg font-semibold">OCR Extracted Text</h3>
+                {ocrMarkdown && !showForm && (
+                  <Button 
+                    onClick={processWithAI} 
+                    disabled={processingAI}
+                    size="sm"
+                  >
+                    {processingAI ? 'Processing...' : 'Process with AI'}
+                  </Button>
+                )}
               </div>
-              
-              {/* Content based on view mode */}
               {processingOcr ? (
                 <div className="text-gray-500">Processing OCR...</div>
-              ) : viewMode === 'ocr' && ocrMarkdown ? (
-                <div className="border rounded-lg p-4 overflow-auto" style={{ height: 'calc(100vh - 360px)', maxHeight: '800px' }}>
+              ) : ocrMarkdown ? (
+                <div className="border rounded-lg p-4 overflow-auto" style={{ height: '560px' }}>
                   <pre className="whitespace-pre-wrap font-mono text-sm">{ocrMarkdown}</pre>
                 </div>
-              ) : viewMode === 'form' && showForm && poData ? (
-                <div className="overflow-auto" style={{ height: 'calc(100vh - 360px)', maxHeight: '800px' }}>
-                  <POForm 
-                    initialData={poData}
-                    onSubmit={handlePOFormSubmit}
-                    onCancel={handlePOFormCancel}
-                  />
-                </div>
               ) : (
-                <div className="text-gray-500">
-                  {viewMode === 'ocr' ? 'No OCR results available' : 'No form data available'}
-                </div>
+                <div className="text-gray-500">No OCR results available</div>
               )}
             </Card>
           </div>
         )}
         
+        {/* PO Form Modal */}
+        {showForm && poData && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto p-6">
+              <h2 className="text-2xl font-bold mb-6">Review and Edit Purchase Order Data</h2>
+              <POForm 
+                initialData={poData}
+                onSubmit={handlePOFormSubmit}
+                onCancel={handlePOFormCancel}
+              />
+            </div>
+          </div>
+        )}
       </div>
     </Layout>
   );

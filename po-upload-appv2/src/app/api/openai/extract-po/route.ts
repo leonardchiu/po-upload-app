@@ -1,14 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUser, unauthorized } from '@/lib/supabase-server';
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 export async function POST(req: NextRequest) {
-  // Check authentication
-  const user = await getUser();
-  if (!user) {
-    return unauthorized();
-  }
   try {
     if (!OPENAI_API_KEY) {
       return NextResponse.json(
