@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { Sheet, SheetTrigger, SheetContent } from "@/components/ui/sheet";
+import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 
 export default function Layout({ children }: { children: ReactNode }) {
@@ -12,6 +12,9 @@ export default function Layout({ children }: { children: ReactNode }) {
             <Button variant="outline">Menu</Button>
           </SheetTrigger>
           <SheetContent side="left">
+            <SheetHeader>
+              <SheetTitle>Navigation</SheetTitle>
+            </SheetHeader>
             <nav className="flex flex-col gap-4 mt-8">
               <a href="/" className="text-sm font-medium hover:underline pl-4">
                 Dashboard
